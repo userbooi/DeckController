@@ -30,6 +30,8 @@ public class DeckController implements ActionListener {
 	// Fields
 	// the players in the game
 	private Player[] players = new Player[2];
+	// Active player number
+	private int activePlayerNumber = 0;
 	// the game frame that will be created
 	private BohnanzaFrame gameFrame;
 	// the current active player
@@ -542,10 +544,13 @@ public class DeckController implements ActionListener {
 		
 		// check if the offer pile is clicked
 		for (int component=0; component<3; component++) {
-			if (event.getSource() == getGameFrame().getTablePanel().getCard(getGameFrame().getTablePanel().getOfferPile(), component).getCardButton()) {
+			CardPanel offerPile = getGameFrame().getTablePanel().getCard(getGameFrame().getTablePanel().getOfferPile(), component);
+			if (event.getSource() == offerPile.getCardButton()) {
 //				System.out.println(getGameFrame().getTablePanel().getCard(getGameFrame().getTablePanel().getOfferPile(), component).getCard().getType());
-				setOfferClicked(component);
-				updateButtonsForClickingOnOffer();
+				if (offerPile.getCard() != null){
+					setOfferClicked(component);
+					updateButtonsForClickingOnOffer();
+				}
 			}
 		}
 		
@@ -655,10 +660,9 @@ public class DeckController implements ActionListener {
 	 * @author Edwin
 	 */
 	public void updatePhase() {
-		
+		System.out.println(getPhase());
 		if (getPhase() < 4) {
 			setPhase(getPhase() + 1);
-			System.out.println(getPhase());
 		} else {
 			setPhase(1);
 			activePlayerNumber++;
@@ -669,7 +673,7 @@ public class DeckController implements ActionListener {
 				setActivePlayer(getPlayers()[0]);
 			}
 		}
-		
+		getGameFrame().getControlPanel().updatePhaseText(activePlayerNumber, phase);
 	}
 	
 }
