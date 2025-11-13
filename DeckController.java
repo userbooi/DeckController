@@ -38,6 +38,7 @@ public class DeckController implements ActionListener {
 	private Player activePlayer;
 	// the current phase
 	private int phase = 0;
+
 	// store if the player can plant or not plant (depending on the step in phase 2)
 	private boolean canPlant = true;
 	private boolean canDiscard = false;
@@ -51,6 +52,8 @@ public class DeckController implements ActionListener {
 	private Stack<Card> drawPile;
 	// offer pile
 	private Card[] offerPile;
+	// active player number
+	private int activePlayerNumber;
 	
 	// store the current card clicked
 	private int cardClicked;
@@ -61,36 +64,28 @@ public class DeckController implements ActionListener {
 	
 	// Constructor method called upon initialization
 	public DeckController() {
+
+		// call updatePhase
+		updatePhase();
+
+		// set first player to player1
+		activePlayerNumber = 0;
+		
+		// initialize the two players
+		initializePlayers();
 		
 		// Read image files using the file reader
 		// read file must be called first since all the type information is dependent on the text file that needs to be read
 		FileReader.readFile();
 		
-		// test LinkedLists
-		LinkedList<Card> testList = new LinkedList<Card>();
-		testList.add(new Card(Type.BLACK_EYED, 1));
-		testList.add(new Card(Type.BLUE, 1));
-		testList.add(new Card(Type.SOY, 1));
-		testList.add(new Card(Type.CHILI, 1));
-		testList.add(new Card(Type.GREEN, 1));
-		testList.add(new Card(Type.STINK, 1));
-		testList.add(new Card(Type.BLACK_EYED, 1));
-		testList.add(new Card(Type.CHILI, 1));
-		testList.add(new Card(Type.STINK, 1));
-		testList.add(new Card(Type.GREEN, 1));
-		testList.add(new Card(Type.BLACK_EYED, 1));
+		// initialize the deck
+		initializeDeck();
+
+		// deal out the cards
+		distributeCards();
 		
 		// Create the game frame
-		gameFrame = new BohnanzaFrame(testList, testList);
-
-		// Update the phase
-		updatePhase();
-		
-		// initialize the two players
-		initializePlayers();
-		
-		// initialize the draw pile
-		initializeDeck();
+		gameFrame = new BohnanzaFrame(players[0].getHand(), players[1].getHand());
 		
 		// set the active player
 		setActivePlayer(getPlayers()[0]);
@@ -240,6 +235,14 @@ public class DeckController implements ActionListener {
 	public void setPlanting(boolean planting) {
 		this.planting = planting;
 	}
+	
+	public int getActivePlayerNumber() {
+		return activePlayerNumber;
+	}
+
+	public void setActivePlayerNumber(int currentPlayer) {
+		this.activePlayerNumber = currentPlayer;
+	}
 
 	// Utility methods
 	/**
@@ -285,12 +288,25 @@ public class DeckController implements ActionListener {
            
             for (int card=0; card<5; card++){
                
-                // Draw a card from the draw pile and give it to the player
-                player.addCard(drawPile.pop());
+                drawCard(player);
                
             }
         }
     }
+
+	/**
+	 * @author Jayden
+	 */
+	// method to add a card to a players hand from draw pile
+	public void drawCard(Player player){
+		// Draw a card from the draw pile and give it to the player
+		// pop removes the element while returning it
+		player.addCard(drawPile.pop());
+		if (getGameFrame() != null){
+			getGameFrame().getHandPanel()[activePlayerNumber].remakeTheHand(player.getHand());
+			getGameFrame().getHandPanel()[activePlayerNumber].updateGridColumn();
+		}
+	}
 	
 	/**
 	 * @author Daniel
@@ -307,7 +323,7 @@ public class DeckController implements ActionListener {
 
 			File file = new File("./" + soundFile); // Create the sound file
 			AudioInputStream audioIn = AudioSystem.getAudioInputStream(file.toURI().toURL()); // Create the audo input
-																								// stream using the file
+																							  // stream using the file
 			clip = AudioSystem.getClip(); // Get the clip of the sound
 			clip.open(audioIn); // Open the clip
 			
@@ -397,6 +413,10 @@ public class DeckController implements ActionListener {
 	}
 	
 	// handles the outputs that are made when the player interacts with a card
+	/**
+	 * @author Edwin
+	 * @author Jayden
+	 */
 	@Override
 	public void actionPerformed(ActionEvent event) {
 	
@@ -513,7 +533,13 @@ public class DeckController implements ActionListener {
 		
 		// check if the draw card button is clicked
 		if (event.getSource() == getGameFrame().getTablePanel().getDrawPile().getCardButton()) {
-			System.out.println("DRAW CARD");
+			System.out.println("Draw Card");
+			// draw from the drawPile to offer piles
+			if (phase == 3){}
+			// check if the phase is equal to 4 (Draw 2 cards)
+			if (phase == 4){
+				drawCard(activePlayer);
+			}
 		}
 		
 		// check if the offer pile is clicked
@@ -639,6 +665,8 @@ public class DeckController implements ActionListener {
 			setPhase(getPhase() + 1);
 		} else {
 			setPhase(1);
+			activePlayerNumber++;
+			activePlayerNumber %= 2;
 			if (getActivePlayer().equals(getPlayers()[0])) {
 				setActivePlayer(getPlayers()[1]);
 			} else {
