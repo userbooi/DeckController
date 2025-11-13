@@ -35,8 +35,10 @@ public class DeckController implements ActionListener {
 	// the current active player
 	private Player activePlayer;
 	// the current phase
-	private int phase = 1;
+	private int phase = 0;
+
 	// store if the player can plant or not plant (depending on the step in phase 2)
+	private boolean canPlant = true;
 	private boolean canDiscard = false;
 	// store if the player has completed all the necessary steps to move to the next phase
 	private boolean canNextPhase = true;
@@ -48,6 +50,8 @@ public class DeckController implements ActionListener {
 	private Stack<Card> drawPile;
 	// offer pile
 	private Card[] offerPile;
+	// active player number
+	private int activePlayerNumber;
 	
 	// store the current card clicked
 	private int cardClicked;
@@ -58,33 +62,28 @@ public class DeckController implements ActionListener {
 	
 	// Constructor method called upon initialization
 	public DeckController() {
+
+		// call updatePhase
+		updatePhase();
+
+		// set first player to player1
+		activePlayerNumber = 0;
+		
+		// initialize the two players
+		initializePlayers();
 		
 		// Read image files using the file reader
 		// read file must be called first since all the type information is dependent on the text file that needs to be read
 		FileReader.readFile();
 		
-		// test LinkedLists
-		LinkedList<Card> testList = new LinkedList<Card>();
-		testList.add(new Card(Type.BLACK_EYED, 1));
-		testList.add(new Card(Type.BLUE, 1));
-		testList.add(new Card(Type.SOY, 1));
-		testList.add(new Card(Type.CHILI, 1));
-		testList.add(new Card(Type.GREEN, 1));
-		testList.add(new Card(Type.STINK, 1));
-		testList.add(new Card(Type.BLACK_EYED, 1));
-		testList.add(new Card(Type.CHILI, 1));
-		testList.add(new Card(Type.STINK, 1));
-		testList.add(new Card(Type.GREEN, 1));
-		testList.add(new Card(Type.BLACK_EYED, 1));
-		
-		// initialize the two players
-		initializePlayers(testList, testList);
+		// initialize the deck
+		initializeDeck();
+
+		// deal out the cards
+		distributeCards();
 		
 		// Create the game frame
-		gameFrame = new BohnanzaFrame(getPlayers()[0].getHand(), getPlayers()[1].getHand());
-		
-		// initialize the draw pile
-		initializeDeck();
+		gameFrame = new BohnanzaFrame(players[0].getHand(), players[1].getHand());
 		
 		// set the active player
 		setActivePlayer(getPlayers()[0]);
@@ -178,6 +177,14 @@ public class DeckController implements ActionListener {
 	public void setOfferPile(Card[] offerPile) {
 		this.offerPile = offerPile;
 	}
+	
+	public boolean isCanPlant() {
+		return canPlant;
+	}
+
+	public void setCanPlant(boolean canPlant) {
+		this.canPlant = canPlant;
+	}
 
 	public boolean isCanDiscard() {
 		return canDiscard;
@@ -226,6 +233,14 @@ public class DeckController implements ActionListener {
 	public void setPlanting(boolean planting) {
 		this.planting = planting;
 	}
+	
+	public int getActivePlayerNumber() {
+		return activePlayerNumber;
+	}
+
+	public void setActivePlayerNumber(int currentPlayer) {
+		this.activePlayerNumber = currentPlayer;
+	}
 
 	// Utility methods
 	/**
@@ -271,12 +286,25 @@ public class DeckController implements ActionListener {
            
             for (int card=0; card<5; card++){
                
-                // Draw a card from the draw pile and give it to the player
-                player.addCard(drawPile.pop());
+                drawCard(player);
                
             }
         }
     }
+
+	/**
+	 * @author Jayden
+	 */
+	// method to add a card to a players hand from draw pile
+	public void drawCard(Player player){
+		// Draw a card from the draw pile and give it to the player
+		// pop removes the element while returning it
+		player.addCard(drawPile.pop());
+		if (getGameFrame() != null){
+			getGameFrame().getHandPanel()[activePlayerNumber].remakeTheHand(player.getHand());
+			getGameFrame().getHandPanel()[activePlayerNumber].updateGridColumn();
+		}
+	}
 	
 	/**
 	 * @author Daniel
@@ -293,7 +321,7 @@ public class DeckController implements ActionListener {
 
 			File file = new File("./" + soundFile); // Create the sound file
 			AudioInputStream audioIn = AudioSystem.getAudioInputStream(file.toURI().toURL()); // Create the audo input
-																								// stream using the file
+																							  // stream using the file
 			clip = AudioSystem.getClip(); // Get the clip of the sound
 			clip.open(audioIn); // Open the clip
 			
@@ -317,10 +345,10 @@ public class DeckController implements ActionListener {
 	}
 	
 	// create the two players in the game
-	public void initializePlayers(LinkedList<Card> hand1, LinkedList<Card> hand2) {
+	public void initializePlayers() {
 		
-		getPlayers()[0] = new Player(hand1);
-		getPlayers()[1] = new Player(hand2);
+		getPlayers()[0] = new Player();
+		getPlayers()[1] = new Player();
 		
 	}
 	
@@ -383,6 +411,10 @@ public class DeckController implements ActionListener {
 	}
 	
 	// handles the outputs that are made when the player interacts with a card
+	/**
+	 * @author Edwin
+	 * @author Jayden
+	 */
 	@Override
 	public void actionPerformed(ActionEvent event) {
 	
@@ -396,15 +428,10 @@ public class DeckController implements ActionListener {
 				CardPanel cardPanel = getGameFrame().getHandPanel()[0].getCardButtons().get(component);
 				
 				if (event.getSource() == cardPanel.getCardButton()) {
-					setCardClicked(component);
 					
-					// set the buttons depending on what can be done
-					if (component == 0) {
-						updateButtonsForClickingOnHand(true, true);
-					} else {
-						updateButtonsForClickingOnHand(true, false);
-					}
-				
+					setCardClicked(component);
+					updateButtonsForClickingOnHand();
+					
 				}
 			}
 			
@@ -416,13 +443,7 @@ public class DeckController implements ActionListener {
 					if (!isPlanting()) {
 						
 						setFieldClicked(component);
-
-						// set the buttons depending on what can be done
-						if (component == 0) {
-							updateButtonsForClickingOnHand(true, true);
-						} else {
-							updateButtonsForClickingOnHand(true, false);
-						}
+						updateButtonsForClickingOnField();
 						
 					} else {
 						
@@ -443,17 +464,8 @@ public class DeckController implements ActionListener {
 							// plant bean at the field
 							getActivePlayer().plantBean(beanToPlant.getCard(), component);
 							getGameFrame().getTablePanel().getCard(getGameFrame().getTablePanel().getFields()[0], component).updateCard(getActivePlayer().getFields().get(component).getCard());
+							beanToPlant.updateCard(null);
 							
-							// remove the card from the offer if the phase is 3/1
-							if (getPhase() == 3 || getPhase() == 1) {
-								beanToPlant.updateCard(null);
-							} else {
-
-								getActivePlayer().getHand().remove(0);
-								getGameFrame().getHandPanel()[0].remakeTheHand(getActivePlayer().getHand());
-								
-							}
-								
 						}
 						
 						setPlanting(false);
@@ -472,7 +484,7 @@ public class DeckController implements ActionListener {
 				if (event.getSource() == cardPanel.getCardButton()) {
 					
 					setCardClicked(component);
-					updateButtonsForClickingOnHand(false, true);
+					updateButtonsForClickingOnHand();
 				}
 			}
 
@@ -519,7 +531,13 @@ public class DeckController implements ActionListener {
 		
 		// check if the draw card button is clicked
 		if (event.getSource() == getGameFrame().getTablePanel().getDrawPile().getCardButton()) {
-			System.out.println("DRAW CARD");
+			System.out.println("Draw Card");
+			// draw from the drawPile to offer piles
+			if (phase == 3){}
+			// check if the phase is equal to 4 (Draw 2 cards)
+			if (phase == 4){
+				drawCard(activePlayer);
+			}
 		}
 		
 		// check if the offer pile is clicked
@@ -581,14 +599,7 @@ public class DeckController implements ActionListener {
 			// check if the player is in the plant phase or offer card phase
 			if (getPhase() == 2) {
 				
-				for (int field=0; field<getActivePlayer().getFields().size(); field++) {
-					// highlight plantable fields
-					if (getActivePlayer().getFields().get(field).canPlant(getGameFrame().getHandPanel()[currActivePlayer].getCardButtons().getFirst().getCard())) {
-						getGameFrame().getTablePanel().getCard(getGameFrame().getTablePanel().getFields()[currActivePlayer], field).setHighlight(true);
-						// set the planting to true to that clicking the beans in the fields will add to it instead of invoking harvesting
-						setPlanting(true);
-					}
-				}
+				System.out.println("PLANT BEAN FROM HAND");
 				
 			} else { // use an else because only phase 2 and phase 3 can invoke the plant button
 				
@@ -611,9 +622,9 @@ public class DeckController implements ActionListener {
 	/**
 	 * @author Edwin
 	 */
-	public void updateButtonsForClickingOnHand(boolean canDiscard, boolean canPlant) {
+	public void updateButtonsForClickingOnHand() {
 		
-		getGameFrame().getControlPanel().enableButtonsClickingCardInHand(canDiscard, canPlant);
+		getGameFrame().getControlPanel().enableButtonsClickingCardInHand(isCanDiscard(), isCanPlant());
 		
 	}
 	
@@ -650,6 +661,8 @@ public class DeckController implements ActionListener {
 			System.out.println(getPhase());
 		} else {
 			setPhase(1);
+			activePlayerNumber++;
+			activePlayerNumber %= 2;
 			if (getActivePlayer().equals(getPlayers()[0])) {
 				setActivePlayer(getPlayers()[1]);
 			} else {
