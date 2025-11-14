@@ -5,6 +5,7 @@ import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 // Necessary imports
 import java.io.File;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedList;
 import java.util.Stack;
@@ -51,9 +52,10 @@ public class DeckController implements ActionListener {
 	// draw pile (use a stack because you can only remove from the top
 	private Stack<Card> drawPile;
 	// offer pile
-	private Card[] offerPile;
-	// active player number
-	private int activePlayerNumber;
+	private Card[] offerPile = new Card[3];
+
+	// Store the number of times an offer card has been drawn from the draw pile (max 3)
+	private int offersDrawn = 0;
 	
 	// store the current card clicked
 	private int cardClicked;
@@ -61,12 +63,10 @@ public class DeckController implements ActionListener {
 	private int fieldClicked;
 	// store the current offer clicked
 	private int offerClicked;
+
 	
 	// Constructor method called upon initialization
 	public DeckController() {
-
-		// call updatePhase
-		updatePhase();
 
 		// set first player to player1
 		activePlayerNumber = 0;
@@ -86,6 +86,9 @@ public class DeckController implements ActionListener {
 		
 		// Create the game frame
 		gameFrame = new BohnanzaFrame(players[0].getHand(), players[1].getHand());
+
+		// call updatePhase
+		updatePhase();
 		
 		// set the active player
 		setActivePlayer(getPlayers()[0]);
@@ -96,9 +99,9 @@ public class DeckController implements ActionListener {
 		tp.addCard(tp.getDiscardPile(), new Card(Type.RED, 1), 0);
 		getDiscardPile().push(new Card(Type.RED, 1));
 		
-		tp.addCard(tp.getOfferPile(), new Card(Type.BLUE, 2), 1);
-		tp.addCard(tp.getOfferPile(), new Card(Type.BLACK_EYED, 2), 0);
-		tp.addCard(tp.getOfferPile(), new Card(Type.CHILI, 2), 2);
+		// tp.addCard(tp.getOfferPile(), new Card(Type.BLUE, 2), 1);
+		// tp.addCard(tp.getOfferPile(), new Card(Type.BLACK_EYED, 2), 0);
+		// tp.addCard(tp.getOfferPile(), new Card(Type.CHILI, 2), 2);
 		tp.addCard(tp.getFields()[0], new Card(Type.BLACK_EYED, 1), 0);
 //						tp.addCard(tp.getFields()[0], new Card(Type.GREEN, 2), 1);
 		getPlayers()[0].getFields().get(0).setCard(tp.getCard(tp.getFields()[0], 0).getCard());
@@ -304,7 +307,63 @@ public class DeckController implements ActionListener {
 		player.addCard(drawPile.pop());
 		if (getGameFrame() != null){
 			getGameFrame().getHandPanel()[activePlayerNumber].remakeTheHand(player.getHand());
-			getGameFrame().getHandPanel()[activePlayerNumber].updateGridColumn();
+			getGameFrame().getHandPanel()[activePlayerNumber].updateGridColumn(0);
+		}
+	}
+
+	/**
+	 * @author Daniel
+	 */
+	// Method to draw a card to the offer pile, happens in phase 3
+	public void drawToOffer(){
+
+		// Increase counter
+		offersDrawn++;
+
+		// Draw a card from the draw pile
+		Card drawnCard = drawPile.pop();
+
+		// Loop through the offers, looking for cards of the same type to add count to
+		for(int pile=0; pile<3; pile++){
+			Card card = offerPile[pile];
+			if(card == null) continue;
+			if(card.getType() == drawnCard.getType()){
+				card.setCount(card.getCount() + 1);
+				gameFrame.getTablePanel().getCard(gameFrame.getTablePanel().getOfferPile(), pile).updateCard(card);
+				return;
+			}
+		}
+
+		// Loop through the piles searching for a place to put the card
+		for(int pile=0; pile<3; pile++){
+
+			// Check if there is a card there already
+			if (offerPile[pile] == null){
+				
+				// Set the card
+				offerPile[pile] = drawnCard;
+				gameFrame.getTablePanel().getCard(gameFrame.getTablePanel().getOfferPile(), pile).updateCard(drawnCard);
+				return;
+
+			}
+
+		}
+		
+	}
+
+	/**
+	 * @author Daniel
+	 */
+	// Method to clear all the offers
+	public void clearOffers(){
+
+		// Loop through the piles to remove the cards
+		for(int pile=0; pile<3; pile++){
+
+			// Set the card
+			gameFrame.getTablePanel().getCard(gameFrame.getTablePanel().getOfferPile(), pile).updateCard(null);
+			offerPile[pile] = null;
+
 		}
 	}
 	
@@ -431,8 +490,12 @@ public class DeckController implements ActionListener {
 				
 				if (event.getSource() == cardPanel.getCardButton()) {
 					
-					setCardClicked(component);
-					updateButtonsForClickingOnHand();
+					// set the buttons depending on what can be done
+					if (component == 0) {
+						updateButtonsForClickingOnHand(true, true);
+					} else {
+						updateButtonsForClickingOnHand(true, false);
+					}
 					
 				}
 			}
@@ -467,6 +530,10 @@ public class DeckController implements ActionListener {
 							getActivePlayer().plantBean(beanToPlant.getCard(), component);
 							getGameFrame().getTablePanel().getCard(getGameFrame().getTablePanel().getFields()[0], component).updateCard(getActivePlayer().getFields().get(component).getCard());
 							beanToPlant.updateCard(null);
+							if (phase != 2){
+								System.out.println(offerClicked);
+								offerPile[offerClicked] = null;
+							}
 							
 						}
 						
@@ -486,7 +553,13 @@ public class DeckController implements ActionListener {
 				if (event.getSource() == cardPanel.getCardButton()) {
 					
 					setCardClicked(component);
-					updateButtonsForClickingOnHand();
+					
+					// set the buttons depending on what can be done
+					if (component == 0) {
+						updateButtonsForClickingOnHand(true, true);
+					} else {
+						updateButtonsForClickingOnHand(true, false);
+					}
 				}
 			}
 
@@ -521,6 +594,10 @@ public class DeckController implements ActionListener {
 							getActivePlayer().plantBean(beanToPlant.getCard(), component);
 							getGameFrame().getTablePanel().getCard(getGameFrame().getTablePanel().getFields()[1], component).updateCard(getActivePlayer().getFields().get(component).getCard());
 							beanToPlant.updateCard(null);
+							if (phase != 2){
+								System.out.println(offerClicked);
+								offerPile[offerClicked] = null;
+							}
 							
 						}
 						
@@ -535,7 +612,9 @@ public class DeckController implements ActionListener {
 		if (event.getSource() == getGameFrame().getTablePanel().getDrawPile().getCardButton()) {
 			System.out.println("Draw Card");
 			// draw from the drawPile to offer piles
-			if (phase == 3){}
+			if (phase == 3 && offersDrawn < 3){
+				drawToOffer();
+			}
 			// check if the phase is equal to 4 (Draw 2 cards)
 			if (phase == 4){
 				drawCard(activePlayer);
@@ -561,10 +640,8 @@ public class DeckController implements ActionListener {
 		
 		// check if one of the control buttons are clicked
 		if (event.getSource() == getGameFrame().getControlPanel().getEndPhaseButton()) {
-			
 			// change the phase if the 
 			updatePhase();
-			
 		} else if (event.getSource() == getGameFrame().getControlPanel().getHarvestButton()) {
 			
 			// harvest the field if the field can be harvested
@@ -619,6 +696,21 @@ public class DeckController implements ActionListener {
 				
 			}
 			
+		} else if (event.getSource() == getGameFrame().getControlPanel().getDiscardButton()) {
+			
+			getGameFrame().getControlPanel().disableAllButtons();
+			
+			int currActivePlayer;
+			
+			if (getActivePlayer().equals(getPlayers()[0])) {
+				currActivePlayer = 0;
+			} else {
+				currActivePlayer = 1;
+			}
+			
+			getActivePlayer().getHand().remove(getCardClicked());
+			getGameFrame().getHandPanel()[currActivePlayer].remakeTheHand(getActivePlayer().getHand());
+			
 		}
 		
 	}
@@ -627,9 +719,9 @@ public class DeckController implements ActionListener {
 	/**
 	 * @author Edwin
 	 */
-	public void updateButtonsForClickingOnHand() {
+	public void updateButtonsForClickingOnHand(boolean canDiscard, boolean canPlant) {
 		
-		getGameFrame().getControlPanel().enableButtonsClickingCardInHand(isCanDiscard(), isCanPlant());
+		getGameFrame().getControlPanel().enableButtonsClickingCardInHand(canDiscard, canPlant);
 		
 	}
 	
@@ -660,7 +752,6 @@ public class DeckController implements ActionListener {
 	 * @author Edwin
 	 */
 	public void updatePhase() {
-		System.out.println(getPhase());
 		if (getPhase() < 4) {
 			setPhase(getPhase() + 1);
 		} else {
@@ -673,6 +764,12 @@ public class DeckController implements ActionListener {
 				setActivePlayer(getPlayers()[0]);
 			}
 		}
+		if (phase == 2)
+			clearOffers();
+		else if (phase == 1) 
+			offersDrawn = 0; // Reset the number of offers drawn after the phase ends
+		System.out.println(phase);
+		System.out.println(Arrays.toString(offerPile));
 		getGameFrame().getControlPanel().updatePhaseText(activePlayerNumber, phase);
 	}
 	
