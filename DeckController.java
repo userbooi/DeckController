@@ -96,8 +96,8 @@ public class DeckController implements ActionListener {
 		// add test cards to the piles
 		TablePanel tp = gameFrame.getTablePanel();
 		
-		tp.addCard(tp.getDiscardPile(), new Card(Type.RED, 1), 0);
-		getDiscardPile().push(new Card(Type.RED, 1));
+		tp.addCard(tp.getDiscardPile(), new Card(Type.BLUE, 1), 0);
+		getDiscardPile().push(new Card(Type.BLUE, 1));
 		
 		// tp.addCard(tp.getOfferPile(), new Card(Type.BLUE, 2), 1);
 		// tp.addCard(tp.getOfferPile(), new Card(Type.BLACK_EYED, 2), 0);
@@ -365,6 +365,58 @@ public class DeckController implements ActionListener {
 			offerPile[pile] = null;
 
 		}
+	}
+
+	/**
+	 * @author Daniel
+	 */
+	// Method to draw a card from discard to offer
+	public void drawDiscardToOffer(){
+		Card card = discardPile.peek();
+		
+		// Check if there is the same card type in the offer piles
+		for (int pile=0; pile<3; pile++){
+			
+			Card offerCard = offerPile[pile];
+
+			if (offerCard == null) continue;
+
+			if (offerCard.getType() == card.getType()){
+				offerCard.setCount(offerCard.getCount() + card.getCount());
+				gameFrame.getTablePanel().getCard(gameFrame.getTablePanel().getOfferPile(), pile).updateCard(offerCard);
+				discardPile.pop();
+				gameFrame.getTablePanel().getDiscardPile().updateCard(null);
+				return;
+			}
+
+		}
+
+	}
+
+	/**
+	 * @author Daniel
+	 */
+	public boolean canDrawFromDiscard(){
+
+		if (discardPile.empty()) return false;
+		
+		Card card = discardPile.peek();
+
+		// Check if there is the same card type in the offer piles
+		for (int pile=0; pile<3; pile++){
+			
+			Card offerCard = offerPile[pile];
+
+			if (offerCard == null) continue;
+
+			// gameFrame.getTablePanel().getCard(gameFrame.getTablePanel().getOfferPile(), pile).getCard();
+			if (offerCard.getType() == card.getType()){
+				return true;
+			}
+
+		}
+		return false;
+
 	}
 	
 	/**
@@ -636,6 +688,12 @@ public class DeckController implements ActionListener {
 		// check if the discard pile is clicked
 		if (event.getSource() == getGameFrame().getTablePanel().getDiscardPile().getCardButton()) {
 			System.out.println("DRAW FROM DISCARD");
+
+			if (phase == 3 && offersDrawn == 3 && canDrawFromDiscard()){
+
+				drawDiscardToOffer();
+
+			}
 		}
 		
 		// check if one of the control buttons are clicked
@@ -752,6 +810,10 @@ public class DeckController implements ActionListener {
 	 * @author Edwin
 	 */
 	public void updatePhase() {
+		
+		// Do not let the player end phase if they have yet to draw from the offers or can still draw from discard pile
+		if (getPhase() == 3 && (offersDrawn < 3 || canDrawFromDiscard()))
+			return;
 		if (getPhase() < 4) {
 			setPhase(getPhase() + 1);
 		} else {
@@ -768,9 +830,8 @@ public class DeckController implements ActionListener {
 			clearOffers();
 		else if (phase == 1) 
 			offersDrawn = 0; // Reset the number of offers drawn after the phase ends
-		System.out.println(phase);
-		System.out.println(Arrays.toString(offerPile));
 		getGameFrame().getControlPanel().updatePhaseText(activePlayerNumber, phase);
+		getGameFrame().getControlPanel().disableAllButtons();
 	}
 	
 }
