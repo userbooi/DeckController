@@ -416,13 +416,7 @@ public class DeckController implements ActionListener {
 					if (!isPlanting()) {
 						
 						setFieldClicked(component);
-
-						// set the buttons depending on what can be done
-						if (component == 0) {
-							updateButtonsForClickingOnHand(true, true);
-						} else {
-							updateButtonsForClickingOnHand(true, false);
-						}
+						updateButtonsForClickingOnField();
 						
 					} else {
 						
@@ -472,7 +466,13 @@ public class DeckController implements ActionListener {
 				if (event.getSource() == cardPanel.getCardButton()) {
 					
 					setCardClicked(component);
-					updateButtonsForClickingOnHand(false, true);
+					
+					// set the buttons depending on what can be done
+					if (component == 0) {
+						updateButtonsForClickingOnHand(true, true);
+					} else {
+						updateButtonsForClickingOnHand(true, false);
+					}
 				}
 			}
 
@@ -538,10 +538,8 @@ public class DeckController implements ActionListener {
 		
 		// check if one of the control buttons are clicked
 		if (event.getSource() == getGameFrame().getControlPanel().getEndPhaseButton()) {
-			
 			// change the phase if the 
 			updatePhase();
-			
 		} else if (event.getSource() == getGameFrame().getControlPanel().getHarvestButton()) {
 			
 			// harvest the field if the field can be harvested
@@ -602,6 +600,21 @@ public class DeckController implements ActionListener {
 				}
 				
 			}
+			
+		} else if (event.getSource() == getGameFrame().getControlPanel().getDiscardButton()) {
+			
+			getGameFrame().getControlPanel().disableAllButtons();
+			
+			int currActivePlayer;
+			
+			if (getActivePlayer().equals(getPlayers()[0])) {
+				currActivePlayer = 0;
+			} else {
+				currActivePlayer = 1;
+			}
+			
+			getActivePlayer().getHand().remove(getCardClicked());
+			getGameFrame().getHandPanel()[currActivePlayer].remakeTheHand(getActivePlayer().getHand());
 			
 		}
 		
