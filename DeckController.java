@@ -79,38 +79,39 @@ public class DeckController implements ActionListener {
 		// read file must be called first since all the type information is dependent on the text file that needs to be read
 		FileReader.readFile();
 
-		LinkedList<Card> testList1 = new LinkedList<Card>();
-		testList1.add(new Card(Type.BLACK_EYED, 1));
-		testList1.add(new Card(Type.BLUE, 1));
-		testList1.add(new Card(Type.SOY, 1));
-		testList1.add(new Card(Type.CHILI, 1));
-		testList1.add(new Card(Type.GREEN, 1));
-		testList1.add(new Card(Type.STINK, 1));
-		testList1.add(new Card(Type.BLACK_EYED, 1));
-		testList1.add(new Card(Type.CHILI, 1));
-		testList1.add(new Card(Type.STINK, 1));
-		testList1.add(new Card(Type.GREEN, 1));
-		testList1.add(new Card(Type.BLACK_EYED, 1));
-
-		LinkedList<Card> testList2 = new LinkedList<Card>();
-		testList2.add(new Card(Type.BLACK_EYED, 1));
-		testList2.add(new Card(Type.BLUE, 1));
-		testList2.add(new Card(Type.SOY, 1));
-		testList2.add(new Card(Type.CHILI, 1));
-		testList2.add(new Card(Type.GREEN, 1));
-		testList2.add(new Card(Type.STINK, 1));
-		testList2.add(new Card(Type.BLACK_EYED, 1));
-		testList2.add(new Card(Type.CHILI, 1));
-		testList2.add(new Card(Type.STINK, 1));
-		testList2.add(new Card(Type.GREEN, 1));
-		testList2.add(new Card(Type.BLACK_EYED, 1));
+//		LinkedList<Card> testList1 = new LinkedList<Card>();
+//		testList1.add(new Card(Type.BLACK_EYED, 1));
+//		testList1.add(new Card(Type.BLUE, 1));
+//		testList1.add(new Card(Type.SOY, 1));
+//		testList1.add(new Card(Type.CHILI, 1));
+//		testList1.add(new Card(Type.GREEN, 1));
+//		testList1.add(new Card(Type.STINK, 1));
+//		testList1.add(new Card(Type.BLACK_EYED, 1));
+//		testList1.add(new Card(Type.CHILI, 1));
+//		testList1.add(new Card(Type.STINK, 1));
+//		testList1.add(new Card(Type.GREEN, 1));
+//		testList1.add(new Card(Type.BLACK_EYED, 1));
+//
+//		LinkedList<Card> testList2 = new LinkedList<Card>();
+//		testList2.add(new Card(Type.BLACK_EYED, 1));
+//		testList2.add(new Card(Type.BLUE, 1));
+//		testList2.add(new Card(Type.SOY, 1));
+//		testList2.add(new Card(Type.CHILI, 1));
+//		testList2.add(new Card(Type.GREEN, 1));
+//		testList2.add(new Card(Type.STINK, 1));
+//		testList2.add(new Card(Type.BLACK_EYED, 1));
+//		testList2.add(new Card(Type.CHILI, 1));
+//		testList2.add(new Card(Type.STINK, 1));
+//		testList2.add(new Card(Type.GREEN, 1));
+//		testList2.add(new Card(Type.BLACK_EYED, 1));
 		
 		// set first player to player1
 		activePlayerNumber = 0;
 		
 		// initialize the two players
-//		initializePlayers();
-		initializePlayers(testList1, testList2);
+		initializePlayers();
+//		initializePlayers(testList1, testList2);
+		getPlayers()[0].addCoins(100);
 		
 		// initialize the deck
 		initializeDeck();
@@ -119,7 +120,7 @@ public class DeckController implements ActionListener {
 		distributeCards();
 		
 		// Create the game frame
-		gameFrame = new BohnanzaFrame(players[0].getHand(), players[1].getHand());
+		gameFrame = new BohnanzaFrame(players[0], players[1], getDrawPile().size());
 
 		// call updatePhase
 		
@@ -129,7 +130,8 @@ public class DeckController implements ActionListener {
 		// add test cards to the piles
 //		TablePanel tp = gameFrame.getTablePanel();
 		
-//		getDiscardPile().push(new Card(Type.RED, 1));
+//		getGameFrame().getTablePanel().getDiscardPile().updateCard(new Card(Type.STINK, 1));
+//		getDiscardPile().push(new Card(Type.STINK, 1));
 		
 		// tp.addCard(tp.getOfferPile(), new Card(Type.BLUE, 2), 1);
 		// tp.addCard(tp.getOfferPile(), new Card(Type.BLACK_EYED, 2), 0);
@@ -380,8 +382,7 @@ public class DeckController implements ActionListener {
 		// pop removes the element while returning it
 		player.addCard(drawPile.pop());
 		if (getGameFrame() != null){
-			getGameFrame().getHandPanel()[activePlayerNumber].remakeTheHand(player.getHand());
-			getGameFrame().getHandPanel()[activePlayerNumber].updateGridColumn(1);
+			getGameFrame().getHandPanel()[activePlayerNumber].remakeTheHand(player.getHand(), 1);
 		}
 	}
 
@@ -437,18 +438,13 @@ public class DeckController implements ActionListener {
 
 			// send the cards to the discard pile
 			if (getOfferPile()[pile] != null) {
-				getDiscardPile().push(getOfferPile()[pile]);
+				addToDiscard(getOfferPile()[pile]);
 			}
 				
 			// Set the card
 			gameFrame.getTablePanel().getCard(gameFrame.getTablePanel().getOfferPile(), pile).updateCard(null);
 			offerPile[pile] = null;
 
-		}
-		
-		// set the final image of the discard to the latest offer sent to discard
-		if (!getDiscardPile().empty()) {
-			getGameFrame().getTablePanel().getDiscardPile().updateCard(getDiscardPile().peek());
 		}
 			
 	}
@@ -483,9 +479,7 @@ public class DeckController implements ActionListener {
 					gameFrame.getTablePanel().getDiscardPile().updateCard(discardPile.peek());
 				}
 				
-				if (!canDrawFromDiscard()) {
-					setAbleDrawFromDiscard(false);
-				}
+				canDrawFromDiscard();
 				
 				return;
 			}
@@ -523,6 +517,27 @@ public class DeckController implements ActionListener {
 		setAbleDrawFromDiscard(false);
 		return false;
 
+	}
+	
+	// add a card to the discard pile
+	/**
+	 * @author Edwin
+	 */
+	public void addToDiscard(Card discardedCard) {
+		
+		// check if the top of the discard pile can be merged with the incoming discard card
+		if (!getDiscardPile().empty() && getDiscardPile().peek().getType().equals(discardedCard.getType())) {
+			Card topOfDiscard = getDiscardPile().pop();
+			topOfDiscard.setCount(topOfDiscard.getCount() + discardedCard.getCount());
+			getDiscardPile().push(topOfDiscard);
+		} else {
+			getDiscardPile().push(discardedCard);
+		}
+		
+		// update the visual for the discard pile
+		if (!getDiscardPile().empty()) {
+			getGameFrame().getTablePanel().getDiscardPile().updateCard(getDiscardPile().peek());
+		}
 	}
 	
 	/**
@@ -635,10 +650,21 @@ public class DeckController implements ActionListener {
 		
 	}
 	
+	// add action listener to the third field when it has been purchased
+	/**
+	 * @author Jayden
+	 */
+	public void addActionListenerToThirdField(){
+		JPanel field = getGameFrame().getTablePanel().getFields()[activePlayerNumber];
+		getGameFrame().getTablePanel().getCard(field, 2).getCardButton().addActionListener(this);
+	}
+
+	
 	// handles the outputs that are made when the player interacts with a card
 	/**
 	 * @author Edwin
 	 * @author Jayden
+	 * @author Daniel
 	 */
 	@Override
 	public void actionPerformed(ActionEvent event) {
@@ -667,6 +693,7 @@ public class DeckController implements ActionListener {
 								setCanDiscard(true);
 							} else {
 								setCanDiscard(false);
+								setCanPlant(false);
 							}
 						} else {
 							setCanPlant(false);
@@ -698,7 +725,7 @@ public class DeckController implements ActionListener {
 				if (event.getSource() == getGameFrame().getTablePanel().getCard(player1Field, component).getCardButton()) {
 					
 					// check if the user clicked this button because they are planting or wanting to harvest
-					if (!isPlanting()) {
+					if (!isPlanting() && !isAbleDrawFromDiscard()) {
 						
 						setFieldClicked(component);
 						updateButtonsForClickingOnField();
@@ -729,7 +756,7 @@ public class DeckController implements ActionListener {
 							} else {
 								
 								getActivePlayer().getHand().remove(0);
-								getGameFrame().getHandPanel()[0].remakeTheHand(getActivePlayer().getHand());
+								getGameFrame().getHandPanel()[0].remakeTheHand(getActivePlayer().getHand(), -1);
 								addActionListenerToCardsInHand();
 								
 							}
@@ -765,6 +792,7 @@ public class DeckController implements ActionListener {
 								setCanDiscard(true);
 							} else {
 								setCanDiscard(false);
+								setCanPlant(false);
 							}
 						} else {
 							setCanPlant(false);
@@ -796,7 +824,7 @@ public class DeckController implements ActionListener {
 				if (event.getSource() == getGameFrame().getTablePanel().getCard(player2Field, component).getCardButton()) {
 					
 					// check if the user clicked this button because they are planting or wanting to harvest
-					if (!isPlanting()) {
+					if (!isPlanting() && !isAbleDrawFromDiscard()) {
 						
 						setFieldClicked(component);
 						updateButtonsForClickingOnField();
@@ -826,7 +854,7 @@ public class DeckController implements ActionListener {
 							} else {
 
 								getActivePlayer().getHand().remove(0);
-								getGameFrame().getHandPanel()[1].remakeTheHand(getActivePlayer().getHand());
+								getGameFrame().getHandPanel()[1].remakeTheHand(getActivePlayer().getHand(), -1);
 								addActionListenerToCardsInHand();
 								
 							}
@@ -846,9 +874,10 @@ public class DeckController implements ActionListener {
 			// draw from the drawPile to offer piles
 			if (phase == 3 && offersDrawn < 3){
 				drawToOffer();
-			} else if (offersDrawn == 3) {
-				if (canDrawFromDiscard()) {
-					setAbleDrawFromDiscard(true);
+				if (offersDrawn == 3) {
+					if (canDrawFromDiscard()) {
+						setAbleDrawFromDiscard(true);
+					}
 				}
 			}
 			// check if the phase is equal to 4 (Draw 2 cards)
@@ -861,9 +890,9 @@ public class DeckController implements ActionListener {
 		// check if the offer pile is clicked
 		for (int component=0; component<3; component++) {
 			CardPanel offerPile = getGameFrame().getTablePanel().getCard(getGameFrame().getTablePanel().getOfferPile(), component);
-			if (event.getSource() == offerPile.getCardButton()) {
+			if (event.getSource() == offerPile.getCardButton() && (getPhase() == 3 || getPhase() == 1)) {
 //				System.out.println(getGameFrame().getTablePanel().getCard(getGameFrame().getTablePanel().getOfferPile(), component).getCard().getType());
-				if (offerPile.getCard() != null && (!canDrawFromDiscard() || !isAbleDrawFromDiscard())){
+				if (offerPile.getCard() != null && !isAbleDrawFromDiscard()){
 					setOfferClicked(component);
 					updateButtonsForClickingOnOffer();
 				}
@@ -893,10 +922,8 @@ public class DeckController implements ActionListener {
 				
 				// harvest it from the player to add to the coin count
 				Card remainingCard = getActivePlayer().harvestField(getFieldClicked());
-				// change the discard pile GUI
-				getGameFrame().getTablePanel().getDiscardPile().updateCard(remainingCard);
-				// add to the discard pile in the this class
-				getDiscardPile().push(remainingCard);
+				// add the remaining cards to the discard pile
+				addToDiscard(remainingCard);
 				
 				// remove the card pile from the field in the GUI
 				if (getActivePlayer().equals(getPlayers()[0])) {
@@ -965,15 +992,24 @@ public class DeckController implements ActionListener {
 			
 			Card discardedCard = getActivePlayer().getHand().get(getCardClicked());
 			
-			getDiscardPile().push(discardedCard);
-			getGameFrame().getTablePanel().getDiscardPile().updateCard(discardedCard);
+			addToDiscard(discardedCard);
 			
 			getActivePlayer().getHand().remove(getCardClicked());
-			getGameFrame().getHandPanel()[currActivePlayer].remakeTheHand(getActivePlayer().getHand());
+			getGameFrame().getHandPanel()[currActivePlayer].remakeTheHand(getActivePlayer().getHand(), -1);
 			addActionListenerToCardsInHand();
 			
 			setCardsDiscarded(getCardsDiscarded()+1);
-			
+
+		} else if (event.getSource() == getGameFrame().getControlPanel().getBuyFieldButton()) { // if the player pressed “buy third field” button
+	        // the player wants to purchase a 3rd field
+	        if (activePlayer.buyField()){
+	            // increase the field count
+	            getGameFrame().getTablePanel().increaseFieldCount(activePlayerNumber);
+	            getGameFrame().getHandPanel()[getActivePlayerNumber()].getCoinsLabel().setText(Integer.toString(activePlayer.getCoins()));;
+	            // add an action listener to the third field
+	            addActionListenerToThirdField();
+	        }
+	        
 		}
 		
 	}
@@ -1051,6 +1087,7 @@ public class DeckController implements ActionListener {
 		} else if (phase == 4) {
 			
 			cardsDrawn = 0;
+			setAbleDrawFromDiscard(false);
 		
 		} else if (phase == 3) {
 			
