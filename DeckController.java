@@ -110,8 +110,7 @@ public class DeckController implements ActionListener {
 		
 		// initialize the two players
 		initializePlayers();
-//		initializePlayers(testList1, testList2);
-		getPlayers()[0].addCoins(100);
+//		getPlayers()[0].addCoins(100);
 		
 		// initialize the deck
 		initializeDeck();
