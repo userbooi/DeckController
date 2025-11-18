@@ -8,11 +8,17 @@ import model.Field;
 /**
  * 
  * @author Daniel
- * BasilBot v0.1
+ * BasilBot v0.2
+ * 
+ * -Plays necessary moves
+ * -Greedily play all moves
+ * -Harvest when at max stack
+ * -Discard irrelevant cards
+ * 
  */
 public class BasilBot implements AI {
 
-	private final int AI_MOVE_DELAY = 100;
+	private final int AI_MOVE_DELAY = 1;
 
     // Fields
     private DeckController deckController;
@@ -25,6 +31,8 @@ public class BasilBot implements AI {
 
     // Accept from offer
     public void phase1(){
+
+        optionalHarvest();
 
         // Accept offers with the same type first
         for(int field=0; field<deckController.getActivePlayer().getFields().size(); field++){
@@ -68,17 +76,15 @@ public class BasilBot implements AI {
                 deckController.clickButton("h" + 0);
                 deckController.clickButton("plant");
                 deckController.clickButton("f" + field);
-                System.out.println("Planted on empty");
                 return true;
             }
         }
-        System.out.println("No empty found");
+        
         return false;
 
     }
 
-    // Method when plant is necessary
-    public void mandatoryPlant(){
+    public boolean optionalPlant(){
 
         Card planting = deckController.getActivePlayer().getHand().getFirst();
 
@@ -90,34 +96,111 @@ public class BasilBot implements AI {
                 deckController.clickButton("h" + 0);
                 deckController.clickButton("plant");
                 deckController.clickButton("f" + field);
-                return;
+                return true;
             }
         }
         
-        if (plantOnEmpty(planting)) return;
+        // Check if there is an empty slot to plant on
+        return plantOnEmpty(planting);
 
-        // Look for a card to harvest from
-        int bestField = -1;
+    }
+
+    public boolean optionalHarvest(){
+
+        boolean hasHarvested = false;
+
+        // Check if any of the beans are past their max yield
         for(int field=0; field<deckController.getActivePlayer().getFields().size(); field++){
             Field curField = deckController.getActivePlayer().getFields().get(field);
             if (curField.getCard() == null) continue;
-            if (bestField == -1 || curField.getCard().getCount() > deckController.getActivePlayer().getFields().get(bestField).getCard().getCount()){
-                bestField = field;
+            if (curField.getCard().getType().getBeanometer()[3] <= curField.getCard().getCount()){
+                
+                deckController.clickButton("f" + field);
+                deckController.clickButton("harvest");
+                deckController.clickButton("buy");
+
+                hasHarvested = true;
+
+            }
+        }
+
+        return hasHarvested;
+
+    }
+
+    public void mandatoryHarvest(){
+
+        if (optionalHarvest())
+            return;
+
+        // Look for a card to harvest from
+        int worstField = -1;
+        for(int field=0; field<deckController.getActivePlayer().getFields().size(); field++){
+            Field curField = deckController.getActivePlayer().getFields().get(field);
+            if (curField.getCard() == null || !deckController.getActivePlayer().canHarvest(field)) continue;
+            if (worstField == -1 || curField.getCard().getCount() > deckController.getActivePlayer().getFields().get(worstField).getCard().getCount()){
+                worstField = field;
             }
         }
         
-        deckController.clickButton("f" + bestField);
+        deckController.clickButton("f" + worstField);
         deckController.clickButton("harvest");
         deckController.clickButton("buy");
 
-        plantOnEmpty(planting);
+    }
+
+    // Method when plant is necessary
+    public void mandatoryPlant(){
+
+        Card planting = deckController.getActivePlayer().getHand().getFirst();
+
+        if (optionalPlant()) return;
+
+        mandatoryHarvest();
+
+        if (!plantOnEmpty(planting))
+            System.out.println("ERROR: CANNOT PLANT");
             
+    }
+
+    public void optionalDiscard(){
+
+        // Check if any fields contain the next card
+        for(int hand=0; hand<deckController.getActivePlayer().getHand().size(); hand++){
+
+            // Get the current card it is checking
+            Card curCard = deckController.getActivePlayer().getHand().get(hand);
+            boolean sameCard = false;
+            
+            for(int field=0; field<deckController.getActivePlayer().getFields().size(); field++){
+
+                Field curField = deckController.getActivePlayer().getFields().get(field);
+                if (curField.getCard() == null) continue;
+                if (curField.getCard().getType() == curCard.getType()){
+                    sameCard = true;
+
+                }
+
+            }
+
+            // If no cards in the fields are the same type as this card, then discard
+            if (!sameCard){
+                deckController.clickButton("h" + hand);
+                deckController.clickButton("discard");
+                return;
+            }
+
+        }
+        // Discard from first slot
+
     }
 
     // Plant or discard
     public void phase2(){
 
         mandatoryPlant();
+        optionalPlant();
+        optionalDiscard();
 
     }
 
@@ -149,22 +232,19 @@ public class BasilBot implements AI {
         
         int phase = deckController.getPhase();
 
-        if (phase == 1){ // Accept from offer piles
-
-            phase1();
-
-        } else if (phase == 2){ // Plant and discard
-
-            phase2();
-
-        } else if (phase == 3){ // Draw from offer
-
-            phase3();
-
-        } else if (phase == 4){
-
-            phase4();
-            
+        switch (phase){
+            case 1:
+                phase1();
+                break;
+            case 2:
+                phase2();
+                break;
+            case 3:
+                phase3();
+                break;
+            case 4:
+                phase4();
+                break;
         }
 
         Timer t = new Timer(AI_MOVE_DELAY, e->{
