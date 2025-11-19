@@ -1,37 +1,221 @@
 package controller;
 
+import java.util.HashMap;
+import java.util.Map.Entry;
 import javax.swing.Timer;
 import model.AI;
 import model.Card;
 import model.Field;
+import model.Player;
+import model.Type;
 
 /**
  * 
  * @author Daniel
- * BasilBot v0.2
+ * BasilBot v0.6
  * 
  * -Plays necessary moves
  * -Greedily play all moves
  * -Harvest when at max stack
  * -Discard irrelevant cards
+ * -Scores cards based on many criteria to find which and whether or not a field should be harvested for an offered field
  * 
  */
 public class BasilBot implements AI {
 
-	private final int AI_MOVE_DELAY = 1;
+	private final int AI_MOVE_DELAY = 0;
 
     // Fields
     private DeckController deckController;
-    
+    private HashMap<Type, Double> beanTypeScore = new HashMap<>();
+
     // Constructor
     public BasilBot(){
         super();
 
     }
 
+    // Returns a score based on how little more effort it takes to get to the next beanometer
+    public int scoreBeanometer(Card card){
+
+        int beansToNextCoin = 3; // Default value of 3
+        for(int coins = 0; coins < 4; coins++){
+            beansToNextCoin = card.getType().getBeanometer()[coins] - 1 - card.getCount();
+            if (beansToNextCoin >= 0)
+                break;
+        }
+        return beansToNextCoin;
+
+    }
+
+    public HashMap<Type,Double> evaluatePlayerBeanScore(Player player){
+
+        // Score up how many card of a bean type are in the hand
+        HashMap<Type, Double> ownedBeanScore = new HashMap<>();
+        for(int hand=0; hand < player.getHand().size(); hand++){
+            Card curCard = player.getHand().get(hand);
+            ownedBeanScore.put(curCard.getType(), 
+            // Score cards closer to the front of the hand with more points
+            ownedBeanScore.getOrDefault(curCard.getType(),0.0) + 
+            0.7 * (player.getHand().size() + 2 - hand) / player.getHand().size());
+        }
+
+        return ownedBeanScore;
+    }
+
+    public HashMap<Type,Double> evaluatePlayerBeanometerScore(Player player){
+
+        // Score up the field cards based on how close it is to the next threshold
+        HashMap<Type, Double> playerBeanometerScore = new HashMap<>();
+        for(int field=0; field < player.getFields().size(); field++){
+            Card curCard = player.getFields().get(field).getCard();
+            if (curCard == null)
+                continue;
+            int beanometerScore = scoreBeanometer(curCard);
+            playerBeanometerScore.put(curCard.getType(), playerBeanometerScore.getOrDefault(curCard.getType(), 0.0) + 3 - beanometerScore);
+        }
+
+        return playerBeanometerScore;
+
+    }
+
+    public void evaluateScore(){
+
+        HashMap<Type, Double> ownedBeanScore = evaluatePlayerBeanScore(deckController.getActivePlayer());
+        HashMap<Type, Double> ownedBeanometerScore = evaluatePlayerBeanometerScore(deckController.getActivePlayer());
+
+        int opponentNumber = (deckController.getActivePlayerNumber() + 1) % 2;
+        HashMap<Type, Double> opponentBeanScore = evaluatePlayerBeanScore(deckController.getPlayers()[opponentNumber]);
+        HashMap<Type, Double> opponentBeanometerScore = evaluatePlayerBeanometerScore(deckController.getPlayers()[opponentNumber]);
+        
+        // Gives a value depending on the percentage of beans still in the deck and the other scores
+        for(Entry<Type, Integer> beanCount : deckController.getBeanCount().entrySet()){
+            
+            double beanScore = ownedBeanScore.getOrDefault(beanCount.getKey(), 0.0);
+            double beanometerScore = ownedBeanometerScore.getOrDefault(beanCount.getKey(), 0.0) * 0.25;
+            double oppBeanScore = opponentBeanScore.getOrDefault(beanCount.getKey(), 0.0) * 0.5;
+            double oppBeanometerScore = opponentBeanometerScore.getOrDefault(beanCount.getKey(), 0.0) * 0.5;
+            double deckScore = (double)beanCount.getValue() / beanCount.getKey().getCount() * 0.7;
+            double resultingScore = deckScore + beanScore + beanometerScore + oppBeanScore + oppBeanometerScore;
+            beanTypeScore.put(beanCount.getKey(), resultingScore);
+            // System.out.printf("Type: %s, beanScore: %.2f, beanometerScore: %.2f, oppBeanScore: %.2f, oppBeanometerScore: %.2f, deckScore: %.2f, resultingScore: %.2f\n", 
+            //     beanCount.getKey().getName(), beanScore, beanometerScore, oppBeanScore, oppBeanometerScore, deckScore, resultingScore);
+        }
+        
+    }
+
+    public double calculateFieldScore(Type fieldType){
+
+        // Score for having the same card type as the one in the field
+        double handTypeScore = 0;
+        for(int hand=0; hand < deckController.getActivePlayer().getHand().size(); hand++){
+            Card curCard = deckController.getActivePlayer().getHand().get(hand);
+             
+            if (curCard.getType() == fieldType)
+                // Score cards closer to the front of the hand with more points
+                handTypeScore += (deckController.getActivePlayer().getHand().size() + 2 - hand) / deckController.getActivePlayer().getHand().size();
+        }
+
+        // Score for having the same card type in the drawing pile
+        double drawingScore = (double)(deckController.getBeanCount().get(fieldType) + 3) / fieldType.getCount();
+        double resultingScore = handTypeScore + drawingScore;
+
+        // System.out.printf("Field Type: %s, handTypeScore: %.2f, drawingScore: %.2f, Final Score: %.2f\n", fieldType.getName(), handTypeScore, drawingScore, resultingScore);
+
+        return resultingScore;
+
+    }
+
+    public void optionalAcceptFromOffer(){
+
+        boolean accepted;
+
+        do {
+
+            evaluateScore();
+
+            accepted = false;
+
+            int bestOffer = -1;
+            double bestScore = 0.5;
+            for (int offer=0; offer<3; offer++){
+                Card curOffer = deckController.getOfferPile()[offer];
+                if (curOffer == null)
+                    continue;
+
+                // Give more score to offers with more than 1 count, but make bonus score increase less
+                double curScore = beanTypeScore.get(curOffer.getType()) + 
+                                beanTypeScore.get(curOffer.getType()) * (curOffer.getCount() - 1) * 12 / curOffer.getType().getCount();
+                if (curScore > bestScore){
+                    bestOffer = offer;
+                    bestScore = curScore;
+                }
+            }
+
+            if (bestScore <= 0.1 || bestOffer == -1)
+                return;
+
+            // Check if there is an empty field to plant on
+            for(int field=0; field<deckController.getActivePlayer().getFields().size(); field++){
+                Field curField = deckController.getActivePlayer().getFields().get(field);
+                if (curField.canPlant(deckController.getOfferPile()[bestOffer])){
+
+                    // System.out.println("Planted: " + deckController.getOfferPile()[bestOffer].getType());
+
+                    deckController.clickButton("o" + bestOffer);
+                    deckController.clickButton("plant");
+                    deckController.clickButton("f" + field);
+
+                    accepted = true;
+                    
+                    break;
+
+                }
+            }
+
+            if (accepted)
+                continue;
+
+            // Check if there is a low score field to replace
+            int worstFieldIndex = -1;
+            double worstFieldScore = 100000; // High default value to be easily overriden
+            for(int field=0; field<deckController.getActivePlayer().getFields().size(); field++){
+                Field curField = deckController.getActivePlayer().getFields().get(field);
+                if (!deckController.getActivePlayer().canHarvest(field))
+                    continue;
+                double curFieldScore = calculateFieldScore(curField.getCard().getType());
+                if (curFieldScore < worstFieldScore){
+                    worstFieldIndex = field;
+                    worstFieldScore = curFieldScore;
+                }
+                
+            }
+            // System.out.printf("bestScore: %.2f, worstFieldScore: %.2f\n", bestScore, worstFieldScore);
+            if (bestScore > worstFieldScore){
+
+                // System.out.println("Replaced: " + deckController.getActivePlayer().getFields().get(worstFieldIndex).getCard().getType() + 
+                // " with: " + deckController.getOfferPile()[bestOffer].getType());
+
+                deckController.clickButton("f" + worstFieldIndex);
+                deckController.clickButton("harvest");
+                deckController.clickButton("buy");
+
+                deckController.clickButton("o" + bestOffer);
+                deckController.clickButton("plant");
+                deckController.clickButton("f" + worstFieldIndex);
+
+                accepted = true;
+
+            }
+
+        } while(accepted);
+        
+    }
+
     // Accept from offer
     public void phase1(){
 
+        // Keep trying optionally harvest until it doesnt harvest anymore
         optionalHarvest();
 
         // Accept offers with the same type first
@@ -39,7 +223,8 @@ public class BasilBot implements AI {
             for (int offer=0; offer<3; offer++){
                 Field curField = deckController.getActivePlayer().getFields().get(field);
                 Card curOffer = deckController.getOfferPile()[offer];
-                if (curField.getCard() == null || curOffer == null) continue;
+                if (curField.getCard() == null || curOffer == null) 
+                    continue;
                 if (curField.getCard().getType() == curOffer.getType()){
                     deckController.clickButton("o" + offer);
                     deckController.clickButton("plant");
@@ -49,20 +234,7 @@ public class BasilBot implements AI {
             }
         }
 
-        // Take cards to fill up fields
-        for(int field=0; field<deckController.getActivePlayer().getFields().size(); field++){
-            for (int offer=0; offer<3; offer++){
-                Field curField = deckController.getActivePlayer().getFields().get(field);
-                Card curOffer = deckController.getOfferPile()[offer];
-                if (curOffer == null) continue;
-                if (curField.canPlant(curOffer)){
-                    deckController.clickButton("o" + offer);
-                    deckController.clickButton("plant");
-                    deckController.clickButton("f" + field);
-                    break;
-                }
-            }
-        }
+        optionalAcceptFromOffer();
 
     }
 
@@ -91,7 +263,8 @@ public class BasilBot implements AI {
         // Look for the same card to plant on top of
         for(int field=0; field<deckController.getActivePlayer().getFields().size(); field++){
             Field curField = deckController.getActivePlayer().getFields().get(field);
-            if (curField.getCard() == null) continue;
+            if (curField.getCard() == null) 
+                continue;
             if (curField.getCard().getType() == planting.getType()){
                 deckController.clickButton("h" + 0);
                 deckController.clickButton("plant");
@@ -112,7 +285,8 @@ public class BasilBot implements AI {
         // Check if any of the beans are past their max yield
         for(int field=0; field<deckController.getActivePlayer().getFields().size(); field++){
             Field curField = deckController.getActivePlayer().getFields().get(field);
-            if (curField.getCard() == null) continue;
+            if (curField.getCard() == null) 
+                continue;
             if (curField.getCard().getType().getBeanometer()[3] <= curField.getCard().getCount()){
                 
                 deckController.clickButton("f" + field);
@@ -137,7 +311,8 @@ public class BasilBot implements AI {
         int worstField = -1;
         for(int field=0; field<deckController.getActivePlayer().getFields().size(); field++){
             Field curField = deckController.getActivePlayer().getFields().get(field);
-            if (curField.getCard() == null || !deckController.getActivePlayer().canHarvest(field)) continue;
+            if (curField.getCard() == null || !deckController.getActivePlayer().canHarvest(field)) 
+                continue;
             if (worstField == -1 || curField.getCard().getCount() > deckController.getActivePlayer().getFields().get(worstField).getCard().getCount()){
                 worstField = field;
             }
@@ -154,7 +329,8 @@ public class BasilBot implements AI {
 
         Card planting = deckController.getActivePlayer().getHand().getFirst();
 
-        if (optionalPlant()) return;
+        if (optionalPlant()) 
+            return;
 
         mandatoryHarvest();
 
@@ -175,7 +351,8 @@ public class BasilBot implements AI {
             for(int field=0; field<deckController.getActivePlayer().getFields().size(); field++){
 
                 Field curField = deckController.getActivePlayer().getFields().get(field);
-                if (curField.getCard() == null) continue;
+                if (curField.getCard() == null) 
+                    continue;
                 if (curField.getCard().getType() == curCard.getType()){
                     sameCard = true;
 
