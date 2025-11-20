@@ -12,13 +12,14 @@ import model.Type;
 /**
  * 
  * @author Daniel
- * BasilBot v0.6
+ * BasilBot v0.6.7
  * 
  * -Plays necessary moves
  * -Greedily play all moves
  * -Harvest when at max stack
  * -Discard irrelevant cards
  * -Scores cards based on many criteria to find which and whether or not a field should be harvested for an offered field
+ * -Lazy card cycling (only works for counts of 2 or above) to remove offers for opponent
  * 
  */
 public class BasilBot implements AI {
@@ -126,6 +127,101 @@ public class BasilBot implements AI {
 
     }
 
+    // Lazy cycle: check if 2+ offers have 2+ count and if the best offer is better than the worst field
+    public boolean canCycle(){
+
+        int count=0;
+        double bestOffer=0;
+        for(int offer=0; offer<3; offer++){
+            Card curOffer = deckController.getOfferPile()[offer];
+            if (curOffer == null)
+                continue;
+            if (curOffer.getCount() >= 2){
+                count++;
+                double curScore = beanTypeScore.get(curOffer.getType()) + 
+                                    beanTypeScore.get(curOffer.getType()) * (curOffer.getCount() - 1) * 12 / curOffer.getType().getCount();
+                if (curScore > bestOffer){
+                    bestOffer = curScore;
+                }
+            }
+        }
+
+        double worstFieldScore = 100000; // High default value to be easily overriden
+        for(int field=0; field<deckController.getActivePlayer().getFields().size(); field++){
+            Field curField = deckController.getActivePlayer().getFields().get(field);
+            if (!deckController.getActivePlayer().canHarvest(field))
+                continue;
+            double curFieldScore = calculateFieldScore(curField.getCard().getType());
+            if (curFieldScore < worstFieldScore){
+                worstFieldScore = curFieldScore;
+            }
+        }
+
+        // System.out.printf("Count: %d, BestOffer: %.2f, WorstFieldScore: %.2f\n", count, bestOffer, worstFieldScore);
+        return (count >= 2 && bestOffer > worstFieldScore);
+
+    }
+
+    // 'cycling' is when you take from offer and harvest it immediately for another offer, preventing your opponents from getting the one you harvested
+    public void cycleOffer(){
+
+        // Find the worst offer
+        int worstOffer = -1;
+        double worstScore = 10000;
+        for(int offer=0; offer<3; offer++){
+            Card curOffer = deckController.getOfferPile()[offer];
+            if (curOffer == null || curOffer.getCount() < 2)
+                continue;
+            double curScore = beanTypeScore.get(curOffer.getType()) + 
+                                beanTypeScore.get(curOffer.getType()) * (curOffer.getCount() - 1) * 12 / curOffer.getType().getCount();
+            if (curOffer.getCount() >= 2 && curScore < worstScore){
+                worstOffer = offer;
+                worstScore = curScore;
+            }
+        }
+
+        // Check if there is a low score field to replace
+        // Check if there is an empty field to plant on
+        for(int field=0; field<deckController.getActivePlayer().getFields().size(); field++){
+            Field curField = deckController.getActivePlayer().getFields().get(field);
+            if (curField.canPlant(deckController.getOfferPile()[worstOffer])){
+
+                // System.out.printf("Planted: %s\n", deckController.getOfferPile()[worstOffer].getType().toString());
+
+                deckController.clickButton("o" + worstOffer);
+                deckController.clickButton("plant");
+                deckController.clickButton("f" + field);
+                
+                return;
+
+            }
+        }
+        
+        int worstFieldIndex = -1;
+        double worstFieldScore = 100000; // High default value to be easily overriden
+        for(int field=0; field<deckController.getActivePlayer().getFields().size(); field++){
+            Field curField = deckController.getActivePlayer().getFields().get(field);
+            if (!deckController.getActivePlayer().canHarvest(field))
+                continue;
+            double curFieldScore = calculateFieldScore(curField.getCard().getType());
+            if (curFieldScore < worstFieldScore){
+                worstFieldIndex = field;
+                worstFieldScore = curFieldScore;
+            }
+            
+        }
+
+        // System.out.printf("Harvested: %s, Planted: %s\n", deckController.getActivePlayer().getFields().get(worstFieldIndex).getCard().getType().toString(), deckController.getOfferPile()[worstOffer].getType().toString());
+        deckController.clickButton("f" + worstFieldIndex);
+        deckController.clickButton("harvest");
+        deckController.clickButton("buy");
+
+        deckController.clickButton("o" + worstOffer);
+        deckController.clickButton("plant");
+        deckController.clickButton("f" + worstFieldIndex);
+
+    }
+
     public void optionalAcceptFromOffer(){
 
         boolean accepted;
@@ -136,6 +232,15 @@ public class BasilBot implements AI {
 
             accepted = false;
 
+            // Check if you can cycle
+            while (canCycle()){
+                cycleOffer();
+                accepted = true;
+            }
+            if (accepted)
+                continue;
+
+            // Search for the offer with the best score
             int bestOffer = -1;
             double bestScore = 0.5;
             for (int offer=0; offer<3; offer++){
@@ -159,8 +264,6 @@ public class BasilBot implements AI {
             for(int field=0; field<deckController.getActivePlayer().getFields().size(); field++){
                 Field curField = deckController.getActivePlayer().getFields().get(field);
                 if (curField.canPlant(deckController.getOfferPile()[bestOffer])){
-
-                    // System.out.println("Planted: " + deckController.getOfferPile()[bestOffer].getType());
 
                     deckController.clickButton("o" + bestOffer);
                     deckController.clickButton("plant");
@@ -190,11 +293,7 @@ public class BasilBot implements AI {
                 }
                 
             }
-            // System.out.printf("bestScore: %.2f, worstFieldScore: %.2f\n", bestScore, worstFieldScore);
             if (bestScore > worstFieldScore){
-
-                // System.out.println("Replaced: " + deckController.getActivePlayer().getFields().get(worstFieldIndex).getCard().getType() + 
-                // " with: " + deckController.getOfferPile()[bestOffer].getType());
 
                 deckController.clickButton("f" + worstFieldIndex);
                 deckController.clickButton("harvest");
@@ -368,7 +467,6 @@ public class BasilBot implements AI {
             }
 
         }
-        // Discard from first slot
 
     }
 
@@ -424,6 +522,7 @@ public class BasilBot implements AI {
                 break;
         }
 
+        // if (phase == 2 || phase == 3) return;
         Timer t = new Timer(AI_MOVE_DELAY, e->{
             deckController.clickButton("end");
         });
